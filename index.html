@@ -62,14 +62,22 @@
       const getFieldValue = (fieldIds) => {
         if (!fieldIds) return [""];
 
-        const values = fieldIds.flatMap((id) => {
+        for (const id of fieldIds) {
           const nodes = findBySchemaId(annotationData, id);
-          return nodes
-            .filter((node) => node.content && node.content.value)
+          const filtered_nodes = nodes
+            .filter((node) => node.content)
             .map((node) => node.content.value.replace(/\n/g, " ") || "");
-        });
 
-        return values.length > 0 ? values : [""];
+          console.log("filtered nodes", filtered_nodes);
+
+          const hasNonEmptyValue = filtered_nodes.some((value) => value !== "");
+
+          if (hasNonEmptyValue) {
+            return filtered_nodes; // Return the first valid list
+          }
+        }
+
+        return [""]; // Return [""] if no valid lists found
       };
 
       /**
@@ -116,7 +124,7 @@
         displayOutput("Successfully generated!");
         setTimeout(() => {
           window.close();
-        }, 750);
+        }, 500);
       };
 
       /**

@@ -65,10 +65,10 @@
       const getFieldValue = (header, fieldIds) => {
         if (!fieldIds) return [""];
 
-        const values = fieldIds.flatMap((id) => {
+        for (const id of fieldIds) {
           const nodes = findBySchemaId(annotationData, id);
           const nodeValues = nodes
-            .filter((node) => node.content && node.content.value)
+            .filter((node) => node.content && node.content.value !== undefined)
             .map((node) => node.content.value.replace(/\n/g, " ") || "");
 
           // Check if the ID contains "_sbd" and add to sbdDict if it does
@@ -79,10 +79,14 @@
             sbdDict[header].push(...nodeValues);
           }
 
-          return nodeValues;
-        });
+          const hasNonEmptyValue = nodeValues.some((value) => value !== "");
 
-        return values.length > 0 ? values : [""];
+          if (hasNonEmptyValue) {
+            return nodeValues; // Return the first valid list
+          }
+        }
+
+        return [""]; // Return [""] if no valid lists found
       };
 
       /**
@@ -111,9 +115,16 @@
         console.log(Object.keys(csvDict));
 
         // Determine the number of rows in main data and sbd data
+        // const mainRowCount = Math.max(
+        //   ...Object.values(csvDict).map((arr) => arr.length)
+        // );
+
         const mainRowCount = Math.max(
-          ...Object.values(csvDict).map((arr) => arr.length)
+          ...Object.keys(csvDict)
+            .filter((header) => mainHeaders.includes(header)) // Filter keys that are in mainHeaders
+            .map((header) => csvDict[header].length) // Map the filtered headers to their lengths
         );
+
         const sbdRowCount = Math.max(
           ...Object.values(sbdDict).map((arr) => arr.length)
         );
