@@ -66,7 +66,7 @@
           const nodes = findBySchemaId(annotationData, id);
           return nodes
             .filter((node) => node.content && node.content.value)
-            .map((node) => node.content.value);
+            .map((node) => node.content.value.replace(/\n/g, " ") || "");
         });
 
         return values.length > 0 ? values : [""];
@@ -106,7 +106,7 @@
         const downloadLink = document.createElement("a");
         const documentId =
           findBySchemaId(annotationData, "document_id")[0]?.content?.value ||
-          "data";
+          "output";
         downloadLink.href = url;
         downloadLink.download = `${documentId}.csv`;
         document.body.appendChild(downloadLink);

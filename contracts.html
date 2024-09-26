@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>CSV Generator</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        margin: 20px;
+      }
+      #output {
+        white-space: pre-wrap;
+        background-color: #f9f9f9;
+        padding: 10px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="output">Generating CSV...</div>
+
+    <script>
+      /**
+       * Constants
+       */
+      const ORIGIN = "https://ibm-demo.rossum.app";
+      let annotationData = null;
+
+      // Initialize the sbdDict to store values with IDs containing "_sbd"
+      let sbdDict = {};
+
+      /**
+       * Utility function to display output in the designated div.
+       * @param {string} output - The content to display.
+       */
+      const displayOutput = (output) => {
+        const outputDiv = document.getElementById("output");
+        outputDiv.innerHTML = output;
+      };
+
+      /**
+       * Recursively searches for data points by schema ID within the annotation data.
+       * @param {Array} content - The annotation data array.
+       * @param {string} schemaId - The schema ID to search for.
+       * @returns {Array} - An array of matching data points.
+       */
+      const findBySchemaId = (content, schemaId) => {
+        return content.reduce((results, dp) => {
+          if (dp.schemaId === schemaId) {
+            return [...results, dp];
+          } else if (dp.children) {
+            return [...results, ...findBySchemaId(dp.children, schemaId)];
+          }
+          return results;
+        }, []);
+      };
+
+      /**
+       * Retrieves field values based on provided field IDs.
+       * If a field ID contains "_sbd", its values are added to sbdDict.
+       * @param {Array|null} fieldIds - An array of field schema IDs.
+       * @returns {Array} - An array of field values.
+       */
+      const getFieldValue = (header, fieldIds) => {
+        if (!fieldIds) return [""];
+
+        const values = fieldIds.flatMap((id) => {
+          const nodes = findBySchemaId(annotationData, id);
+          const nodeValues = nodes
+            .filter((node) => node.content && node.content.value)
+            .map((node) => node.content.value.replace(/\n/g, " ") || "");
+
+          // Check if the ID contains "_sbd" and add to sbdDict if it does
+          if (id.includes("_sbd")) {
+            if (!sbdDict[header]) {
+              sbdDict[header] = [];
+            }
+            sbdDict[header].push(...nodeValues);
+          }
+
+          return nodeValues;
+        });
+
+        return values.length > 0 ? values : [""];
+      };
+
+      /**
+       * Generates CSV content from the provided dictionaries and initiates download.
+       * @param {Object} csvDict - A dictionary where keys are headers and values are arrays of column data.
+       * @param {Object} sbdDict - A dictionary where keys are sbd headers and values are arrays of sbd data.
+       */
+      const generateCsvContent = (csvDict, sbdDict) => {
+        // Separate sbd columns and main columns
+        const sbdHeaders = Object.keys(sbdDict);
+        const mainHeaders = Object.keys(csvDict).filter(
+          (header) => !sbdHeaders.includes(header)
+        );
+
+        console.log(mainHeaders);
+        console.log(sbdHeaders);
+
+        // Combine headers
+        console.log(mainHeaders, sbdHeaders);
+        console.log("0000");
+        const combinedHeaders = [...mainHeaders, ...sbdHeaders];
+        let csv = combinedHeaders.join(",") + "\n";
+
+        console.log("-------------");
+        console.log(combinedHeaders);
+        console.log(Object.keys(csvDict));
+
+        // Determine the number of rows in main data and sbd data
+        const mainRowCount = Math.max(
+          ...Object.values(csvDict).map((arr) => arr.length)
+        );
+        const sbdRowCount = Math.max(
+          ...Object.values(sbdDict).map((arr) => arr.length)
+        );
+
+        // console.log("saaaaa");
+        // console.log(.length);
+        // console.log(combinedHeaders);
+
+        // Outer loop: Iterate over main rows
+        // Determine the number of iterations for the outer loop
+        // Determine if there are any sbd rows to process
+        // Determine if there are any sbd rows to process
+        const hasSbdRows = sbdRowCount > 0;
+
+        // Determine the number of iterations for the outer loop
+        // If there are no sbd rows, set outerIterations to 1 to ensure the inner loop runs once
+        const outerIterations = hasSbdRows ? sbdRowCount : 1;
+
+        // Outer loop: Iterate over sbd rows if present, otherwise run once
+        for (let i = 0; i < outerIterations; i++) {
+          // Inner loop: Iterate over main rows
+          for (let j = 0; j < mainRowCount; j++) {
+            const row = combinedHeaders.map((header) => {
+              let value = "";
+
+              console.log("debug");
+              console.log(csvDict[header]);
+              console.log(csvDict[header].length);
+              console.log("main value should be here");
+
+              if (hasSbdRows) {
+                if (sbdHeaders.includes(header)) {
+                  if (hasSbdRows) {
+                    // When sbdRowCount > 0, use the current index 'i' to get sbd values
+                    value =
+                      sbdDict[header].length === 1
+                        ? sbdDict[header][0]
+                        : sbdDict[header][i] || "";
+                  } else {
+                    // When sbdRowCount is 0, set sbd headers to empty or a default value
+                    value = ""; // You can set a default value if needed
+                  }
+                } else if (Object.keys(csvDict).includes(header)) {
+                  // Process main headers as usual
+                  value =
+                    csvDict[header].length === 1
+                      ? csvDict[header][0]
+                      : csvDict[header][j] || "";
+
+                  console.log("main value: " + value);
+                }
+              } else {
+                value =
+                  csvDict[header].length == 1
+                    ? csvDict[header][0]
+                    : csvDict[header][j] || "";
+              }
+
+              // Escape quotes and commas in the value
+              if (value.includes(",") || value.includes('"')) {
+                value = `"${value.replace(/"/g, '""')}"`;
+              }
+
+              return value;
+            });
+
+            console.log(row);
+            csv += `${row.join(",")}\n`;
+          }
+        }
+
+        // Optionally display the CSV in the output div
+        // displayOutput(csv);
+
+        // Log the sbdDict for debugging or further processing
+        console.log("sbdDict:", sbdDict);
+
+        // Trigger CSV download
+        const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+        const url = URL.createObjectURL(blob);
+        const downloadLink = document.createElement("a");
+        const documentId =
+          findBySchemaId(annotationData, "document_id")[0]?.content?.value ||
+          "output";
+        downloadLink.href = url;
+        downloadLink.download = `${documentId}.csv`;
+        document.body.appendChild(downloadLink);
+        downloadLink.click();
+        document.body.removeChild(downloadLink);
+        URL.revokeObjectURL(url);
+        displayOutput("Successfully generated!");
+
+        setTimeout(() => {
+          window.close();
+        }, 500);
+      };
+
+      /**
+       * Creates a CSV dictionary based on predefined field mappings and generates the CSV.
+       * @param {Array} annotationData - The annotation data array.
+       */
+      const createCsv = (annotationData) => {
+        const fieldMappings = {
+          "Client Name": ["client_name"],
+          "Customer Name": ["customer_name"],
+          "Invoice Date": null,
+          "Invoice Reference": null,
+          "Contract Reference": ["item_sbd_order_id", "order_id"],
+          "Item Total Amount": ["item_amount_total"],
+          "Claimed Amount": null,
+          UPC: ["item_upc"],
+          "UPC Unit": ["item_upc_unit"],
+          "Item Description": ["item_description"],
+          Quantity: ["item_quantity"],
+          "Allowance Rate": ["item_amount"],
+          "Lump Sum": null,
+          "Allowance Type": ["item_sbd_allowance_type", "allowance_type"],
+          "Deal Description": ["deal_description"],
+          "Peformance Start Date": ["date_start_performance"],
+          "Peformance End Date": ["date_end_performance"],
+          "Purchase Start Date": [
+            "item_purchase_s_date_sbd",
+            "purchase_start_date",
+          ],
+          "Purchase End Date": [
+            "item_purchase_e_date_sbd",
+            "purchase_end_date",
+          ],
+          "Sell Start Date": null,
+          "Sell End Date": null,
+          "Ship Start Date": null,
+          "Ship End Date": null,
+          "Billing Start Date": ["billing_s_date"],
+          "Billing End Date": ["billing_e_date"],
+          Comment: ["comment"],
+          "Promo division": ["item_sbd_promo_division", "promo_division"],
+          "Contract#": ["contract_number"],
+          "Vendor#": ["vendor_id"],
+          "Coupon#": null,
+          "Claim Code": null,
+          "Claim Description": null,
+          "PO#": null,
+          "AllowanceRate/Case": ["item_amount_case"],
+          "AllowanceRate/Unit": ["item_amount_unit"],
+          "Contract Status": ["item_sbd_contract_status", "contract_status"],
+          "PO Date": null,
+          "Ad Date": ["item_sbd_ad_date", "ad_date"],
+          Rate: null,
+          "Check No.": null,
+          "Other Allowances": ["item_other_allowances"],
+          "Debit Memo#": null,
+          Location: ["location"],
+          SRP: null,
+          Banner: null,
+          "Audit Period": null,
+          Facilities: null,
+          "Item code": ["item_code"],
+          Identifiers: null,
+          "Ref date": null,
+          "REF ID": null,
+        };
+
+        const csvDict = {};
+
+        Object.entries(fieldMappings).forEach(([header, fieldIds]) => {
+          const values = getFieldValue(header, fieldIds);
+          csvDict[header] = values;
+        });
+
+        // After collecting all field values, generate the CSV with both csvDict and sbdDict
+        generateCsvContent(csvDict, sbdDict);
+      };
+
+      /**
+       * Initializes the CSV creation process by requesting annotation data.
+       */
+      const initializeCsvGeneration = () => {
+        // Request annotation data from the opener window
+        window.opener.postMessage({ type: "GET_DATAPOINTS" }, ORIGIN);
+      };
+
+      /**
+       * Handles incoming messages from other windows.
+       * @param {MessageEvent} event - The message event.
+       */
+      const handleMessage = (event) => {
+        if (event.origin !== ORIGIN) return;
+
+        const { type, result } = event.data;
+
+        if (type === "GET_DATAPOINTS") {
+          annotationData = result;
+          createCsv(annotationData);
+        }
+      };
+
+      /**
+       * Sets up event listeners and initializes the process.
+       */
+      const setup = () => {
+        window.addEventListener("message", handleMessage, false);
+        initializeCsvGeneration();
+      };
+
+      // Execute setup on window load
+      window.onload = setup;
+    </script>
+  </body>
+</html>
