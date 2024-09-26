@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>CSV Generator</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        margin: 20px;
+      }
+      #output {
+        white-space: pre-wrap;
+        background-color: #f9f9f9;
+        padding: 10px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="output">Generating CSV...</div>
+
+    <script>
+      /**
+       * Constants
+       */
+      const ORIGIN = "https://ibm-demo.rossum.app";
+      let annotationData = null;
+      let lineCount = 1;
+
+      /**
+       * Utility function to display output in the designated div.
+       * @param {string} output - The content to display.
+       */
+      const displayOutput = (output) => {
+        const outputDiv = document.getElementById("output");
+        outputDiv.innerHTML = output;
+      };
+
+      /**
+       * Recursively searches for data points by schema ID within the annotation data.
+       * @param {Array} content - The annotation data array.
+       * @param {string} schemaId - The schema ID to search for.
+       * @returns {Array} - An array of matching data points.
+       */
+      const findBySchemaId = (content, schemaId) => {
+        return content.reduce((results, dp) => {
+          if (dp.schemaId === schemaId) {
+            return [...results, dp];
+          } else if (dp.children) {
+            return [...results, ...findBySchemaId(dp.children, schemaId)];
+          }
+          return results;
+        }, []);
+      };
+
+      /**
+       * Retrieves field values based on provided field IDs.
+       * @param {Array|null} fieldIds - An array of field schema IDs.
+       * @returns {Array} - An array of field values.
+       */
+      const getFieldValue = (fieldIds) => {
+        if (!fieldIds) return [""];
+
+        const values = fieldIds.flatMap((id) => {
+          const nodes = findBySchemaId(annotationData, id);
+          return nodes
+            .filter((node) => node.content && node.content.value)
+            .map((node) => node.content.value);
+        });
+
+        return values.length > 0 ? values : [""];
+      };
+
+      /**
+       * Generates CSV content from the provided dictionary and initiates download.
+       * @param {Object} csvDict - A dictionary where keys are headers and values are arrays of column data.
+       */
+      const generateCsvContent = (csvDict) => {
+        const headers = Object.keys(csvDict);
+        let csv = headers.join(",") + "\n";
+
+        for (let i = 0; i < lineCount; i++) {
+          const row = headers
+            .map((header) => {
+              let value =
+                csvDict[header].length === 1
+                  ? csvDict[header][0]
+                  : csvDict[header][i] || "";
+
+              // Escape quotes and commas
+              if (value.includes(",") || value.includes('"')) {
+                value = `"${value.replace(/"/g, '""')}"`;
+              }
+              return value;
+            })
+            .join(",");
+          csv += `${row}\n`;
+        }
+
+        // Optionally display the CSV in the output div
+
+        // Trigger CSV download
+        const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+        const url = URL.createObjectURL(blob);
+        const downloadLink = document.createElement("a");
+        const documentId =
+          findBySchemaId(annotationData, "document_id")[0]?.content?.value ||
+          "data";
+        downloadLink.href = url;
+        downloadLink.download = `${documentId}.csv`;
+        document.body.appendChild(downloadLink);
+        downloadLink.click();
+        document.body.removeChild(downloadLink);
+        URL.revokeObjectURL(url);
+        displayOutput("Successfully generated!");
+        setTimeout(() => {
+          window.close();
+        }, 750);
+      };
+
+      /**
+       * Creates a CSV dictionary based on predefined field mappings and generates the CSV.
+       * @param {Array} annotationData - The annotation data array.
+       */
+      const createCsv = (annotationData) => {
+        const fieldMappings = {
+          "Client Name": ["client_name"],
+          "Customer Name": ["customer_name"],
+          "Invoice Date": ["date_issue"],
+          "Invoice Reference": ["document_id"],
+          "Contract Reference": ["order_id"],
+          "Item Total Amount": ["item_amount_total"],
+          "Claimed Amount": ["amount_due"],
+          UPC: ["item_upc", "item_upc_dist"],
+          "UPC Unit": null,
+          "Item Description": ["item_description", "item_description_dist"],
+          Quantity: ["item_quantity"],
+          "Allowance Rate": ["item_amount"],
+          "Lump Sum": ["item_lump_sum"],
+          "Allowance Type": ["allowance_type"],
+          "Deal Description": ["deal_description"],
+          "Performance Start Date": [
+            "item_perf_start_date",
+            "date_start_performance",
+          ],
+          "Performance End Date": [
+            "item_perf_end_date",
+            "date_end_performance",
+          ],
+          "Purchase Start Date": [
+            "item_purchase_s_date",
+            "purchase_start_date",
+          ],
+          "Purchase End Date": ["item_purchase_e_date", "purchase_end_date"],
+          "Sell Start Date": ["sell_start_date"],
+          "Sell End Date": ["sell_end_date"],
+          "Ship Start Date": ["ship_start_date"],
+          "Ship End Date": ["ship_end_date"],
+          "Billing Start Date": ["item_billing_start_date", "billing_s_date"],
+          "Billing End Date": ["item_billing_end_date", "billing_e_date"],
+          Comment: ["comment"],
+          "Promo division": ["final_promo_division"],
+          "Contract#": ["contract_number", "order_id"],
+          "Vendor#": ["vendor_id"],
+          "Coupon#": ["coupon_number"],
+          "Claim Code": ["claim_code"],
+          "Claim Description": ["claim_description"],
+          "PO#": ["item_po_number", "po_number"],
+          "AllowanceRate/Case": ["item_amount_case"],
+          "AllowanceRate/Unit": ["item_amount_unit"],
+          "Contract Status": null,
+          "PO Date": ["item_po_date", "po_date"],
+          "Ad Date": ["ad_date"],
+          Rate: null,
+          "Check No.": ["check_number"],
+          "Other Allowances": ["item_other_allowances"],
+          "Debit Memo#": ["debit_memo"],
+          Location: ["location"],
+          SRP: null,
+          Banner: ["banner"],
+          "Audit Period": ["audit_period"],
+          Facilities: ["final_promo_division"],
+          "Item code": ["item_code", "item_code_dist"],
+          Identifiers: ["item_identifiers"],
+          "Ref date": ["item_ref_date"],
+          "REF ID": ["order_id"],
+        };
+
+        const csvDict = {};
+
+        Object.entries(fieldMappings).forEach(([header, fieldIds]) => {
+          const values = getFieldValue(fieldIds);
+          if (values.length > lineCount) {
+            lineCount = values.length;
+          }
+          csvDict[header] = values;
+        });
+
+        generateCsvContent(csvDict);
+      };
+
+      /**
+       * Initializes the CSV creation process by requesting annotation data.
+       */
+      const initializeCsvGeneration = () => {
+        // Request annotation data from the opener window
+        window.opener.postMessage({ type: "GET_DATAPOINTS" }, ORIGIN);
+      };
+
+      /**
+       * Handles incoming messages from other windows.
+       * @param {MessageEvent} event - The message event.
+       */
+      const handleMessage = (event) => {
+        if (event.origin !== ORIGIN) return;
+
+        const { type, result } = event.data;
+
+        if (type === "GET_DATAPOINTS") {
+          annotationData = result;
+          console.log("Received annotationData:", annotationData);
+          createCsv(annotationData);
+        }
+      };
+
+      /**
+       * Sets up event listeners and initializes the process.
+       */
+      const setup = () => {
+        window.addEventListener("message", handleMessage, false);
+        initializeCsvGeneration();
+      };
+
+      // Execute setup on window load
+      window.onload = setup;
+    </script>
+  </body>
+</html>
